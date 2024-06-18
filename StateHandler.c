@@ -65,7 +65,8 @@ void StateHandler_process(void)
         }
         if (EV_PUSH_BUTTON_A_PRESSED == gCurrentEvent)
         {
-            gCurrentState = ST_START_RACE;
+            //gCurrentState = ST_START_RACE;
+            gCurrentState = ST_RUN_RACE;
         }
         if (EV_PUSH_BUTTON_C_PRESSED == gCurrentEvent)
         {
@@ -97,32 +98,43 @@ void StateHandler_process(void)
         if (EV_CALIBRATION_SUCCESSFUL == RetEv)//---------hier Rückgabewerte: calibration_successful
         {
             gCurrentState = ST_WAIT;
-            //Display_gotoxy(0, 6);
-            //Display_write("Calib success", 14);
+            Display_gotoxy(0, 6);
+            Display_write("Calib success", 14);
         }
         if (EV_CALIBRATION_FAILED == RetEv)
         {
             //gCurrentState = ST_ERROR;
             gErrorID = ER_CALIBRATION;
-            //Display_gotoxy(0, 6);
-            //Display_write("Calib error", 12);
+            Display_gotoxy(0, 6);
+            Display_write("Calib error", 12);
         }
         break;
 
     case ST_RUN_RACE: 
+            //Display_clear();
+            Display_gotoxy(0, 1);
+            Display_write("enterRunRace", 13);
         switch (RunRace_process())
         {
             case EV_STARTENDLINE_DETECTED:
-                gCurrentState = ST_RACE_DONE;
+                //gCurrentState = ST_RACE_DONE;
+                gCurrentState = ST_WAIT;
+                DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0, DRIVE_CONTROL_FORWARD);
+                DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0, DRIVE_CONTROL_FORWARD);
                 break;
 
             case EV_TRACK_LOST:
-                gCurrentState = ST_REDETECT_TRACK;
+                //gCurrentState = ST_REDETECT_TRACK;
+                gCurrentState = ST_WAIT;
                 break;
 
             case EV_LAPTIME_TIMEOUT:
-                gCurrentState = ST_ERROR;
+                //gCurrentState = ST_ERROR;
+                gCurrentState = ST_WAIT;
                 gErrorID = ER_RACETIME;
+                //for debugging
+                DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0, DRIVE_CONTROL_FORWARD);
+                DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0, DRIVE_CONTROL_FORWARD);
                 break;
 
             default:
@@ -133,7 +145,7 @@ void StateHandler_process(void)
     case ST_START_RACE:
         Display_gotoxy(0, 1);
         Display_write("entStRace", 10);
-        //RetEv = StartRace_process();
+        RetEv = StartRace_process();
         if (EV_STARTENDLINE_DETECTED == RetEv)//---------hier Rückgabewerte: EV_STARTLINE_DETECTED
         {
             gCurrentState = ST_RUN_RACE;
