@@ -32,9 +32,11 @@ if the startline is not detected it'll jump in the error state
 #include "app/CalibrationXXX.h"
 
  /* CONSTANTS **************************************************************************************/
-#define STARTTIME 3u
+#define STARTTIME 3000U
 #define STARTLINETIME 2u
-
+#define START_RACE_SPEED 20U
+#define START_RACE_OVER_LINE_THRESHOLD 180U
+#define START_RACE_NO_LINE_THRESHOLD 90U
  /* MACROS *****************************************************************************************/
 
  /* TYPES ******************************************************************************************/
@@ -75,12 +77,12 @@ Events StartRace_process(void)
   if(!Test){
       SoftTimer_init(&gStartTimer);
       SoftTimerHandler_register(&gStartTimer);
-      SoftTimer_start(&gStartTimer, 3000U);
+      SoftTimer_start(&gStartTimer, STARTTIME);
 
       Test = 1;
   }
 
-  SoftTimer StartLineTimer;
+  //SoftTimer StartLineTimer;
   LineSensorValues SensorValues;
   Events ReturnValue = EV_NO_EVENT;
   Bool ErrorOccured = false;
@@ -104,13 +106,11 @@ Events StartRace_process(void)
         Display_write("ErrRet", 10);
       }
   }
-  
-  
   //Start driving
   if (driveForwardFlag)
   {
-      DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 10U, DRIVE_CONTROL_FORWARD);
-      DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 10U, DRIVE_CONTROL_FORWARD);
+      DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, START_RACE_SPEED, DRIVE_CONTROL_FORWARD);
+      DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, START_RACE_SPEED, DRIVE_CONTROL_FORWARD);
 
     LineSensor_read(&SensorValues);
 
@@ -121,34 +121,9 @@ Events StartRace_process(void)
     * Starline:  -|- 
     * notice the gap between those two lines 
     */
-    // if (sensorOverLine(SensorValues.value[LINESENSOR_LEFT])
-    //               //&& sensorNoLine(SensorValues.value[LINESENSOR_MIDDLE_LEFT])
-    //               && sensorOverLine(SensorValues.value[LINESENSOR_MIDDLE])
-    //               //&& sensorNoLine(SensorValues.value[LINESENSOR_MIDDLE_RIGHT])
-    //               && sensorOverLine(SensorValues.value[LINESENSOR_RIGHT]))
-    // {
-
-    if ((500U < SensorValues.value[LINESENSOR_LEFT]) && (500U < SensorValues.value[LINESENSOR_RIGHT])) /* if Endline detected */ //hier noch reinmachen, dass in der Mitte nichts erkannt wird?
+    if ((START_RACE_OVER_LINE_THRESHOLD < SensorValues.value[LINESENSOR_LEFT]) && (START_RACE_OVER_LINE_THRESHOLD < SensorValues.value[LINESENSOR_RIGHT])) /* if Startline detected */
     {
       //retEvent =  EV_STARTENDLINE_DETECTED;
-    
-
-    //   LineSensor_read(&SensorValues);
-    //   if(sensorOverLine(SensorValues.value[LINESENSOR_LEFT]))
-    //   {
-    //   Display_gotoxy(0, 4);
-    //   Display_write("LeftTrue", 10);
-    //   }
-    //   if(sensorOverLine(SensorValues.value[LINESENSOR_MIDDLE]))
-    //   {
-    //   Display_gotoxy(0, 5);
-    //   Display_write("MiddleTrue", 10);
-    //   }
-    //   if(sensorOverLine(SensorValues.value[LINESENSOR_RIGHT]))
-    //   {
-    //   Display_gotoxy(0, 6);
-    //   Display_write("RightTrue", 10);
-    //   }
 
       StartLineDetected = true;
       driveForwardFlag = 0;
@@ -160,14 +135,14 @@ Events StartRace_process(void)
     }
   }
 
-  // if (StartLineDetected && !ErrorOccured)
-  // {
-  //   //Notify User with buzzer
-  //   Buzzer_beep(BUZZER_NOTIFY);
+  if (StartLineDetected && !ErrorOccured)
+  {
+    //Notify User with buzzer
+    Buzzer_beep(BUZZER_NOTIFY);
 
-  //   //Set return Vallue
-  //   ReturnValue = EV_STARTENDLINE_DETECTED;
-  //   Test = 0;
+    //Set return Value
+    ReturnValue = EV_STARTENDLINE_DETECTED;
+    Test = 0;
 
   //   /*Start Timemessure
   //   * Time messurement is started done by saving the current vallue of the tick Counter
@@ -175,46 +150,14 @@ Events StartRace_process(void)
   //   * 
   //   */
   //   //gRaceTime.StartTime = TickTimer_get();
-    
-
-
-  // }
-  // else
-  // {
-  //   // to Error State
-  //   //ReturnValue = EV_NO_EVENT;
-  //   ReturnValue = EV_STARTENDLINE_DETECTED_TIMEOUT;
-  // }
+  }
+  else
+  {
+    // to Error State
+    //ReturnValue = EV_NO_EVENT;
+    ReturnValue = EV_STARTENDLINE_DETECTED_TIMEOUT;
+  }
 
 
   return ReturnValue;   
-}
-
-
-static Bool sensorOverLine(UInt16 value)
-{
-    Bool ret;
-    if (value < 180U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
-}
-
-static Bool sensorNoLine(UInt16 value)
-{
-    Bool ret;
-    if (value > 90U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
 }
