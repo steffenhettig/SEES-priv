@@ -39,6 +39,19 @@ typedef enum tag_CalibrationState
 } CalibrationState;
 
 /* PROTOTYPES *************************************************************************************/
+/** This function is used to check if a sensor is over a line
+* @param[in] value sensor values
+* @param[in] *parameterSet Passes the struct with the set parameters
+* @return Bool true if sucessfull
+*/
+static Bool sensorOverLine(UInt16 value);
+
+/** This function is used to check if a sensor is not over a line 
+* @param[in] value sensor values
+* @param[in] *parameterSet Passes the struct with the set parameters
+* @return Bool true if sucessfull
+*/
+static Bool sensorNoLine(UInt16 value);
 
 /** This function is used to check if a sensor is between a line and whitespace (on the edge of a line) 
 * @param[in] value sensor values
@@ -86,7 +99,7 @@ Events CalibrateState_doCalibration(void)
 
         Test = 1;
     }
-    static LineSensorValues values;
+    LineSensorValues values;
 
     //Debug_ShowLineSensorValues(&values);
 
@@ -115,7 +128,7 @@ Events CalibrateState_doCalibration(void)
 
         LineSensor_read(&values);
 
-        if (true == (values.calibrated[LINESENSOR_LEFT] && Calibration_sensorOverLine(values.value[LINESENSOR_LEFT])))
+        if (values.calibrated[LINESENSOR_LEFT] && sensorOverLine(values.value[LINESENSOR_LEFT]))
         {
             SoftTimer_restart(&gTimer);
             gState = CALIBRATION_STATE_TURN_LEFT_UNTIL_RIGHT_SENSOR;
@@ -136,7 +149,7 @@ Events CalibrateState_doCalibration(void)
 
         LineSensor_read(&values);
 
-        if (true == (values.calibrated[LINESENSOR_RIGHT] && Calibration_sensorOverLine(values.value[LINESENSOR_RIGHT])))
+        if (values.calibrated[LINESENSOR_RIGHT] && sensorOverLine(values.value[LINESENSOR_RIGHT]))
         {
             if (!LineSensor_getCalibrationState())
             {
@@ -167,11 +180,11 @@ Events CalibrateState_doCalibration(void)
 
         /* stop if only middle sensor sees a line */
 
-        if (Calibration_sensorNoLine(values.value[LINESENSOR_LEFT]) 
+        if (sensorNoLine(values.value[LINESENSOR_LEFT]) 
         && sensorBetweenLine(values.value[LINESENSOR_MIDDLE_LEFT]) 
-        && Calibration_sensorOverLine(values.value[LINESENSOR_MIDDLE])
+        && sensorOverLine(values.value[LINESENSOR_MIDDLE])
         && sensorBetweenLine(values.value[LINESENSOR_MIDDLE_RIGHT]) 
-        && Calibration_sensorNoLine(values.value[LINESENSOR_RIGHT]))
+        && sensorNoLine(values.value[LINESENSOR_RIGHT]))
         {
             DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0u, DRIVE_CONTROL_FORWARD);
             DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0u, DRIVE_CONTROL_BACKWARD);
@@ -180,6 +193,7 @@ Events CalibrateState_doCalibration(void)
             if (SOFTTIMER_RET_SUCCESS != SoftTimerHandler_unRegister(&gTimer))
             {
                 gErrorMsg = ERRORHANDLER_CALIBRATE_TIMER_UNINIT_FAIL;
+                gState = CALIBRATION_STATE_TIMEOUT;
                 gFSMRobotEvent = EV_CALIBRATION_FAILED;
             }
             gState = CALIBRATION_STATE_FINISHED;
@@ -187,53 +201,6 @@ Events CalibrateState_doCalibration(void)
         break;
 
     case CALIBRATION_STATE_TIMEOUT:
-        //Display_clear();
-        //Display_gotoxy(0, 0);
-        /*if(values.calibrated[LINESENSOR_MIDDLE_LEFT])
-        {
-            Display_write("MidL cal", 10U);
-        }
-        else
-        {
-            Display_write("MidL notcal", 11U);
-        }
-        Display_gotoxy(0, 1);
-        if(values.calibrated[LINESENSOR_MIDDLE])
-        {
-            Display_write("Mid cal", 10U);
-        }
-        else
-        {
-            Display_write("Mid notcal", 11U);
-        }
-        Display_gotoxy(0, 2);
-        if(values.calibrated[LINESENSOR_MIDDLE_RIGHT])
-        {
-            Display_write("MidR cal", 10U);
-        }
-        else
-        {
-            Display_write("MidR notcal", 11U);
-        }
-        Display_gotoxy(0, 3);
-        if(values.calibrated[LINESENSOR_LEFT])
-        {
-            Display_write("Left cal", 10U);
-        }
-        else
-        {
-            Display_write("Left notcal", 11U);
-        }
-        Display_gotoxy(0, 4);
-        if(values.calibrated[LINESENSOR_RIGHT])
-        {
-            Display_write("Right cal", 10U);
-        }
-        else
-        {
-            Display_write("Right notcal", 11U);
-        }*/
-        //Display_write("TurnError", 10U);
         DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0u, DRIVE_CONTROL_FORWARD);   /* Set speed of left motor to zero. This stops the motor. */
         DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0u, DRIVE_CONTROL_BACKWARD); /* Set speed of right motor to zero. This stops the motor. */
         LineSensor_stopCalibration();
@@ -246,7 +213,7 @@ Events CalibrateState_doCalibration(void)
         Display_gotoxy(0, 0);
         Display_write("Fininshed", 10U);
         LineSensor_stopCalibration();
-        SoftTimerHandler_unRegister(&gTimer);
+        //SoftTimerHandler_unRegister(&gTimer);
         gErrorMsg = 0;
         gFSMRobotEvent = EV_CALIBRATION_SUCCESSFUL;
         gState = CALIBRATION_STATE_INIT;
@@ -277,7 +244,7 @@ void CalibrateState_initVariables(void)
 }
 /* INTERNAL FUNCTIONS *****************************************************************************/
 
-Bool Calibration_sensorOverLine(UInt16 value)
+static Bool sensorOverLine(UInt16 value)
 {
     Bool ret;
     if (value < 180U)
@@ -291,7 +258,7 @@ Bool Calibration_sensorOverLine(UInt16 value)
     return ret;
 }
 
-Bool Calibration_sensorNoLine(UInt16 value)
+static Bool sensorNoLine(UInt16 value)
 {
     Bool ret;
     if (value > 90U)
