@@ -25,21 +25,8 @@
  /* TYPES ******************************************************************************************/
 
  /* PROTOTYPES *************************************************************************************/
-/** This function is used to check if a sensor is over a line
-* @param[in] value sensor values
-* @param[in] *parameterSet Passes the struct with the set parameters
-* @return Bool true if sucessfull
-*/
-static Bool sensorOverLine(UInt16 value);
 
-/** This function is used to check if a sensor is not over a line 
-* @param[in] value sensor values
-* @param[in] *parameterSet Passes the struct with the set parameters
-* @return Bool true if sucessfull
-*/
-static Bool sensorNoLine(UInt16 value);
  /* VARIABLES **************************************************************************************/
-
 static void regulateSpeed(Int32 error, UInt16 * leftSpeed, UInt16 * rightSpeed);
 static UInt32 calculatePosition(const LineSensorValues *sensorValues);
 static UInt32 glastPostion = 0U;
@@ -55,8 +42,8 @@ void Driving_stopDriving(void)
 }
 void Driving_driveForward(void)
 {
-    DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, MAX_MOTOR_SPEED, DRIVE_CONTROL_FORWARD);
-    DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, MAX_MOTOR_SPEED, DRIVE_CONTROL_FORWARD);  
+    DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 30U, DRIVE_CONTROL_FORWARD);
+    DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 30U, DRIVE_CONTROL_FORWARD);  
 }
 
 // Implementation of the RunRace_Process method
@@ -125,11 +112,7 @@ static UInt32 calculatePosition(const LineSensorValues * sensorValues)
     {
         UInt32 val = sensorValues->value[sensor];
 
-        // if (CALIB_OVER_LINE(val))
-        // {
-        //     foundLine = true;
-        // }
-        if (sensorOverLine(val))
+        if (CALIB_OVER_LINE(val))
         {
             foundLine = true;
         }
@@ -152,32 +135,4 @@ static UInt32 calculatePosition(const LineSensorValues * sensorValues)
     }
 
     return position;
-}
-
-static Bool sensorOverLine(UInt16 value)
-{
-    Bool ret;
-    if (value < 500U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
-}
-
-static Bool sensorNoLine(UInt16 value)
-{
-    Bool ret;
-    if (value > 250U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
 }
