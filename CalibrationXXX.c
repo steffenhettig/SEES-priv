@@ -1,18 +1,17 @@
 /***************************************************************************************************
-  (c) Auriga
+  (c) FantaVier
 ***************************************************************************************************/
 /**
- * @file       CalibrateState.c
+ * @file       Calibration.c
  *
  * Calibrates the robot's line sensor
  * This Module is a State of the Robots statemachine.
- * The CalibrateState consists of substates.
+ * The CalibrafirstTimeFlagate consists of substates.
  */
 /**************************************************************************************************/
 
 /* INCLUDES ***************************************************************************************/
 #include "app/CalibrationXXX.h"
-#include "app/Calibration.h"
 #include "Common/Types.h"
 //#include "app/App.h"
 //#include "app/Debug.h"
@@ -24,6 +23,12 @@
 #include "service/Display.h"
 /* CONSTANTS **************************************************************************************/
 #define CALIB_TIMEOUT_MS 6000u /**< Calibration Timeout time in milliseconds used to handle lost of track or staing to long in one state of the internal statemachine*/
+#define CALIB_OVER_LINE_THRESHOLD 180U
+#define CALIB_NO_LINE_THRESHOLD 90U
+#define CALIB_BETWEEN_LINE_UP_THRESHOLD 400U
+#define CALIB_BETWEEN_LINE_DOWN_THRESHOLD 100U
+
+#define CALIBRATION_SPEED_CALIBRATION 18U  
 
 /* MACROS *****************************************************************************************/
 
@@ -39,26 +44,6 @@ typedef enum tag_CalibrationState
 } CalibrationState;
 
 /* PROTOTYPES *************************************************************************************/
-/** This function is used to check if a sensor is over a line
-* @param[in] value sensor values
-* @param[in] *parameterSet Passes the struct with the set parameters
-* @return Bool true if sucessfull
-*/
-static Bool sensorOverLine(UInt16 value);
-
-/** This function is used to check if a sensor is not over a line 
-* @param[in] value sensor values
-* @param[in] *parameterSet Passes the struct with the set parameters
-* @return Bool true if sucessfull
-*/
-static Bool sensorNoLine(UInt16 value);
-
-/** This function is used to check if a sensor is between a line and whitespace (on the edge of a line) 
-* @param[in] value sensor values
-* @param[in] *parameterSet Passes the struct with the set parameters
-* @return Bool true if sucessfull
-*/
-static Bool sensorBetweenLine(UInt16 value);
 
 /* VARIABLES **************************************************************************************/
 
@@ -69,46 +54,37 @@ static CalibrationState gState = CALIBRATION_STATE_INIT;
 static SoftTimer gTimer;
 
 /** current ErrorHandlerErrorCode of the calibration state.*/
-static ErrorHandlerErrorCode gErrorMsg;
+static Errors gErrorID;
 
 /** Current FSMRobotEvent for the finite state machine of the robot. */
-static Events gFSMRobotEvent;
+static Events gRetEvent;
 
 /** Holds the pointer for the current selected parameterset*/
 //static ParameterSet_t *gCSCurrentSelectedParameterSet;
 
 /* EXTERNAL FUNCTIONS *****************************************************************************/
-Events CalibrateState_doCalibration(void)
+Events CalibrationXXX_process(void)
 {
-    /*
-    if (gCSCurrentSelectedParameterSet == NULL)
-    {
-        return FSM_ROBOT_EVENT_ERROR;
-    }*/
-
-    gErrorMsg = 0;
-    gFSMRobotEvent = EV_NO_EVENT;
-    static int Test = 0;
-    if(!Test){
+    gRetEvent = EV_NO_EVENT;
+    static int firstTimeFlag = 0;
+    if(!firstTimeFlag){
         gState = CALIBRATION_STATE_INIT;
         SoftTimer_init(&gTimer);
-        gErrorMsg = 0;
-        gFSMRobotEvent = EV_NO_EVENT;
+        gErrorID = 0;
+        gRetEvent = EV_NO_EVENT;
         SoftTimerHandler_register(&gTimer);
         SoftTimer_start(&gTimer, 0U);
 
-        Test = 1;
+        firstTimeFlag = 1;
     }
-    LineSensorValues values;
-
-    //Debug_ShowLineSensorValues(&values);
+    LineSensorValues sensorValues;
 
     switch (gState)
     {
     case CALIBRATION_STATE_INIT:
-        Display_clear();
-        Display_gotoxy(0, 0);
-        Display_write("CalibInit", 10U);
+        //Display_clear();
+        //Display_gotoxy(0, 0);
+        //Display_write("CalibInit", 10U);
         if (SOFTTIMER_IS_EXPIRED(&gTimer))
         {
             gState = CALIBRATION_STATE_TURN_RIGHT_UNTIL_LEFT_SENSOR;
@@ -118,7 +94,7 @@ Events CalibrateState_doCalibration(void)
         break;
 
     case CALIBRATION_STATE_TURN_RIGHT_UNTIL_LEFT_SENSOR:
-        Display_write("TurnR", 6U);
+        Display_write("Right->Left", 12U);
         DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, CALIBRATION_SPEED_CALIBRATION, DRIVE_CONTROL_FORWARD);
         DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, CALIBRATION_SPEED_CALIBRATION, DRIVE_CONTROL_BACKWARD);
         if (SOFTTIMER_IS_EXPIRED(&gTimer))
@@ -126,9 +102,9 @@ Events CalibrateState_doCalibration(void)
             gState = CALIBRATION_STATE_TIMEOUT;
         }
 
-        LineSensor_read(&values);
+        LineSensor_read(&sensorValues);
 
-        if (values.calibrated[LINESENSOR_LEFT] && sensorOverLine(values.value[LINESENSOR_LEFT]))
+        if (sensorValues.calibrated[LINESENSOR_LEFT] && (CALIB_OVER_LINE_THRESHOLD < sensorValues.value[LINESENSOR_LEFT]))
         {
             SoftTimer_restart(&gTimer);
             gState = CALIBRATION_STATE_TURN_LEFT_UNTIL_RIGHT_SENSOR;
@@ -138,7 +114,7 @@ Events CalibrateState_doCalibration(void)
     case CALIBRATION_STATE_TURN_LEFT_UNTIL_RIGHT_SENSOR:
         Display_clear();
         Display_gotoxy(0, 0);
-        Display_write("TurnL", 6U);
+        Display_write("Left->Right", 12U);
         DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, CALIBRATION_SPEED_CALIBRATION, DRIVE_CONTROL_BACKWARD);
         DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, CALIBRATION_SPEED_CALIBRATION, DRIVE_CONTROL_FORWARD);
 
@@ -147,9 +123,9 @@ Events CalibrateState_doCalibration(void)
             gState = CALIBRATION_STATE_TIMEOUT;
         }
 
-        LineSensor_read(&values);
+        LineSensor_read(&sensorValues);
 
-        if (values.calibrated[LINESENSOR_RIGHT] && sensorOverLine(values.value[LINESENSOR_RIGHT]))
+        if (sensorValues.calibrated[LINESENSOR_RIGHT] && (CALIB_OVER_LINE_THRESHOLD < sensorValues.value[LINESENSOR_RIGHT]))
         {
             if (!LineSensor_getCalibrationState())
             {
@@ -176,15 +152,15 @@ Events CalibrateState_doCalibration(void)
             gState = CALIBRATION_STATE_TIMEOUT;
         }
 
-        LineSensor_read(&values);
+        LineSensor_read(&sensorValues);
 
         /* stop if only middle sensor sees a line */
 
-        if (sensorNoLine(values.value[LINESENSOR_LEFT]) 
-        && sensorBetweenLine(values.value[LINESENSOR_MIDDLE_LEFT]) 
-        && sensorOverLine(values.value[LINESENSOR_MIDDLE])
-        && sensorBetweenLine(values.value[LINESENSOR_MIDDLE_RIGHT]) 
-        && sensorNoLine(values.value[LINESENSOR_RIGHT]))
+        if ((CALIB_NO_LINE_THRESHOLD > sensorValues.value[LINESENSOR_LEFT]) 
+        && ((CALIB_BETWEEN_LINE_DOWN_THRESHOLD < sensorValues.value[LINESENSOR_MIDDLE_LEFT]) && (CALIB_BETWEEN_LINE_UP_THRESHOLD > sensorValues.value[LINESENSOR_MIDDLE_LEFT]))
+        && (CALIB_OVER_LINE_THRESHOLD < sensorValues.value[LINESENSOR_MIDDLE])
+        && ((CALIB_BETWEEN_LINE_DOWN_THRESHOLD < sensorValues.value[LINESENSOR_MIDDLE_RIGHT]) && (CALIB_BETWEEN_LINE_UP_THRESHOLD > sensorValues.value[LINESENSOR_MIDDLE_RIGHT]))
+        && (CALIB_NO_LINE_THRESHOLD > sensorValues.value[LINESENSOR_RIGHT]))
         {
             DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0u, DRIVE_CONTROL_FORWARD);
             DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0u, DRIVE_CONTROL_BACKWARD);
@@ -192,9 +168,9 @@ Events CalibrateState_doCalibration(void)
             SoftTimer_Stop(&gTimer);
             if (SOFTTIMER_RET_SUCCESS != SoftTimerHandler_unRegister(&gTimer))
             {
-                gErrorMsg = ERRORHANDLER_CALIBRATE_TIMER_UNINIT_FAIL;
+                gErrorID = ER_CALIBRATION;
                 gState = CALIBRATION_STATE_TIMEOUT;
-                gFSMRobotEvent = EV_CALIBRATION_FAILED;
+                gRetEvent = EV_CALIBRATION_FAILED;
             }
             gState = CALIBRATION_STATE_FINISHED;
         }
@@ -204,8 +180,8 @@ Events CalibrateState_doCalibration(void)
         DriveControl_drive(DRIVE_CONTROL_MOTOR_LEFT, 0u, DRIVE_CONTROL_FORWARD);   /* Set speed of left motor to zero. This stops the motor. */
         DriveControl_drive(DRIVE_CONTROL_MOTOR_RIGHT, 0u, DRIVE_CONTROL_BACKWARD); /* Set speed of right motor to zero. This stops the motor. */
         LineSensor_stopCalibration();
-        gErrorMsg = ERRORHANDLER_CALIBRATE_TIMEOUT;
-        gFSMRobotEvent = EV_CALIBRATION_FAILED;
+        gErrorID = ER_CALIBRATION;
+        gRetEvent = EV_CALIBRATION_FAILED;
         break;
 
     case CALIBRATION_STATE_FINISHED:
@@ -214,74 +190,16 @@ Events CalibrateState_doCalibration(void)
         Display_write("Fininshed", 10U);
         LineSensor_stopCalibration();
         //SoftTimerHandler_unRegister(&gTimer);
-        gErrorMsg = 0;
-        gFSMRobotEvent = EV_CALIBRATION_SUCCESSFUL;
+        gErrorID = ER_NO_ERROR;
+        gRetEvent = EV_CALIBRATION_SUCCESSFUL;
         gState = CALIBRATION_STATE_INIT;
 
-        Test = 0;
+        firstTimeFlag = 0;
         break;
+
     default:
         break;
     }
-    //*currentErrorHandlerMsg = gErrorMsg;
-    return gFSMRobotEvent;
-}
-/*
-void CalibrateState_updateParameters(void)
-{
-    gCSCurrentSelectedParameterSet = parameterSets_getSelectedParameterSet();
-}*/
-
-void CalibrateState_initVariables(void)
-{
-    //gCSCurrentSelectedParameterSet = parameterSets_getSelectedParameterSet();
-    gState = CALIBRATION_STATE_INIT;
-    SoftTimer_init(&gTimer);
-    gErrorMsg = 0;
-    gFSMRobotEvent = EV_NO_EVENT;
-    SoftTimerHandler_register(&gTimer);
-    SoftTimer_start(&gTimer, 0U);
+    return gRetEvent;
 }
 /* INTERNAL FUNCTIONS *****************************************************************************/
-
-static Bool sensorOverLine(UInt16 value)
-{
-    Bool ret;
-    if (value < 180U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
-}
-
-static Bool sensorNoLine(UInt16 value)
-{
-    Bool ret;
-    if (value > 90U)
-    {
-        ret = FALSE;
-    }
-    else
-    {
-        ret = TRUE;
-    }
-    return ret;
-}
-
-static Bool sensorBetweenLine(UInt16 value)
-{
-    Bool ret;
-    if ((value > 100U) && (value < 400U))
-    {
-        ret = TRUE;
-    }
-    else
-    {
-        ret = FALSE;
-    }
-    return ret;
-}
